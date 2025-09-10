@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from langfuse.langchain import CallbackHandler
 
-from agent.graphs.orchestrator import graph
+from agent.graph import graph
 
 from app.schemas.chat_request import ChatRequest
 from app.schemas.message import Message
