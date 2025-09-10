@@ -16,6 +16,8 @@ A sophisticated AI agent system that combines LangGraph orchestration with Model
 
 ## 🏗️ Architecture
 
+![Human-in-the-Loop Workflow](images/HITL_Workflow.png)
+
 ### System Components
 
 ```
