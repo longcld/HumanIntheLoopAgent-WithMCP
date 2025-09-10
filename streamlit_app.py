@@ -95,19 +95,6 @@ with st.sidebar:
 
     st.divider()
 
-    # Current state display
-    st.write("**Current State:**")
-    if st.session_state.current_plan:
-        st.write("**Current Plan:**")
-        st.code(st.session_state.current_plan, language="text")
-    else:
-        st.write("**Current Plan:** _No plan set_")
-
-    if st.session_state.previous_node:
-        st.write(f"**Previous Node:** {st.session_state.previous_node}")
-    else:
-        st.write("**Previous Node:** _None_")
-
 
 def call_api_stream(message: str):
     """Call the API streaming endpoint"""
@@ -139,8 +126,7 @@ def call_api_stream(message: str):
 
 
 # Main chat interface
-st.title("🤖 Graph Agent Chat Interface (API Version)")
-st.write("Chat with your LangGraph agent via API. The agent can orchestrate, plan, and respond to your queries.")
+st.title("🤖 Graph Agent Chat UI")
 
 # Display chat messages
 chat_container = st.container()
