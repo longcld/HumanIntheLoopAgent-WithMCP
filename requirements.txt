@@ -1,0 +1,13 @@
+langchain
+langgraph
+langchain-openai
+loguru
+streamlit
+python-dotenv
+fastapi
+uvicorn
+sseclient-py
+pydantic-settings
+mcp
+langchain_mcp_adapters
+langfuse

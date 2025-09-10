@@ -1,0 +1,6 @@
+{
+  "math": {
+    "url": "http://localhost:3111/mcp",
+    "transport": "streamable_http"
+  }
+}
