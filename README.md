@@ -132,6 +132,8 @@ Access the API documentation at: `http://localhost:8000/docs`
 5. Review execution plans before approval
 6. Receive final responses
 
+![Example Conversation](images/example.png)
+
 ### API Endpoints
 
 #### Stream Chat Endpoint
