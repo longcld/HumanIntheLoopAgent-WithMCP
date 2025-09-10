@@ -6,3 +6,4 @@ class PlanState(BaseState):
 
     current_plan: str = ""
     plan_history: list[str] = []
+    is_approved: bool = False

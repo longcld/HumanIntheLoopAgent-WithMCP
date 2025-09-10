@@ -1,5 +1,6 @@
 
 from agent.states.state import State
+from utils import extract_tag_text
 from utils.llm import llm, non_streaming_llm
 from utils.mcp_helpers import get_tool_descriptions
 from loguru import logger
@@ -45,12 +46,14 @@ def check_refinement_node(state):
     if need_refine:
         logger.debug('Plan Refinement Needed *** Refining Plan ***')
         return {
-            "next_node": "Refine"
+            "next_node": "Refine",
+            "is_approved": False
         }
     else:
         logger.debug('No Plan Refinement Needed *** Ending Plan Node ***')
         return {
-            "next_node": "END"
+            "next_node": "END",
+            "is_approved": True
         }
 
 
@@ -63,7 +66,7 @@ def initial_plan_node(state):
         'messages': state['messages'],
         'tools': get_tool_descriptions()
     })
-    plan = response.content.strip()
+    plan = extract_tag_text(response.content.strip(), "plan", first=True)
     logger.debug(f'Initial Plan Created:\n{plan}')
 
     return {
@@ -85,6 +88,7 @@ def refine_plan_node(state):
         'current_plan': current_plan
     })
     refined_plan = response.content.strip()
+    refined_plan = extract_tag_text(refined_plan, "plan", first=True)
     logger.debug(f'Plan Refined:\n{refined_plan}')
 
     return {
@@ -142,7 +146,16 @@ def node(state):
     response = plan_graph.invoke(state)
 
     current_plan = response.get("current_plan", "")
-
+    is_approved = response.get("is_approved", False)
+    if is_approved:
+        logger.debug(
+            'Plan Approved *** Ending Plan Node *** Routing to Execute Node ***'
+        )
+        return {
+            'current_plan': current_plan,
+            'previous_node': 'Plan',
+            'next_node': 'Execute'
+        }
     return {
         'current_plan': current_plan,
         'previous_node': 'Plan',

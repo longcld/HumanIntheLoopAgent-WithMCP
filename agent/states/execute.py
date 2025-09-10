@@ -1,4 +1,6 @@
+from typing import Any
 from .base import BaseState
+from langchain_core.messages import BaseMessage, ToolMessage
 
 
 class ExecutionState(BaseState):
@@ -6,4 +8,9 @@ class ExecutionState(BaseState):
 
     plan: str = ""
     steps: list[str] = []
-    current_step: int = 0
+    current_step: int = 1
+    need_approval: bool = True
+
+    tool_message: BaseMessage
+    is_tool_calling: bool = False
+    tool_outputs: list[ToolMessage] = []

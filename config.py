@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
 
+    # LangFuse Tracking
+    LANGFUSE_DEBUG: bool = False
+    LANGFUSE_SECRET_KEY: str
+    LANGFUSE_PUBLIC_KEY: str
+    LANGFUSE_HOST: str
+
 
 @lru_cache
 def get_settings() -> Settings:

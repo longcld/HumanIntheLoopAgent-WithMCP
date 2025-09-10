@@ -6,7 +6,8 @@ import uvicorn
 from loguru import logger
 import asyncio
 from config import get_settings
-
+from dotenv import load_dotenv
+load_dotenv(".env")
 settings = get_settings()
 
 

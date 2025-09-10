@@ -136,7 +136,7 @@ with chat_container:
         if msg["role"] == "user":
             st.chat_message("user").markdown(msg["content"])
         else:
-            st.chat_message("assistant").markdown(msg["content"])
+            st.chat_message("assistant").text(msg["content"])
 
 # Chat input
 if prompt := st.chat_input("Type your message here..."):
@@ -199,7 +199,7 @@ if prompt := st.chat_input("Type your message here..."):
                         thinking_container.empty()
 
                         full_response += content
-                        response_container.markdown(full_response)
+                        response_container.text(full_response)
 
                         # Update state
                         if node:
@@ -214,7 +214,7 @@ if prompt := st.chat_input("Type your message here..."):
                             "full_response", full_response)
                         if final_response:
                             full_response = final_response
-                            response_container.markdown(full_response)
+                            response_container.text(full_response)
                         break
 
                     elif response_type == "error":

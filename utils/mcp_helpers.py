@@ -7,3 +7,7 @@ def get_tool_descriptions():
     if mcp_client_manager.tools:
         return [convert_to_openai_function(tool) for tool in mcp_client_manager.tools]
     return []
+
+def get_tools():
+    """Get tools from MCP client manager."""
+    return mcp_client_manager.tools

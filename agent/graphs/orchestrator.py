@@ -14,7 +14,7 @@ from loguru import logger
 workflow = StateGraph(State)
 workflow.add_node('Orchestrate', orchestate_node)
 workflow.add_node('Plan', plan_node)
-# workflow.add_node('Execute', execute_node)
+workflow.add_node('Execute', execute_node)
 workflow.add_node('Response', response_node)
 
 # add entrypoint
@@ -27,7 +27,7 @@ workflow.add_conditional_edges(
     {
         "Plan": "Plan",
         "Response": "Response",
-        # "Execute": "Execute",
+        "Execute": "Execute",
     }
 )
 
@@ -36,11 +36,12 @@ workflow.add_conditional_edges(
     lambda x: x["next_node"],
     {
         "END": END,
-        # "Execute": "Execute",
-        "Response": "Response",
+        "Execute": "Execute",
+        # "Response": "Response",
     }
 )
 
 workflow.add_edge("Response", END)
+workflow.add_edge("Execute", END)
 
 graph = workflow.compile()

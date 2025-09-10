@@ -1,5 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 
+
 def is_need_to_refine_plan_prompt() -> ChatPromptTemplate:
     system_prompt = """You are an expert AI assistant that helps determine if the current plan needs refinement based on the conversation so far.
 Based on the conversation so far and the existing plan, do you need to refine or update the plan? Answer with a simple 'yes' or 'no'.
@@ -15,17 +16,21 @@ Based on the conversation so far and the existing plan, do you need to refine or
 def initial_plan_prompt() -> ChatPromptTemplate:
     system_prompt = """You are an expert AI assistant that helps create detailed plans based on user requests.
 Given the user's request, available tools, and the conversation so far, create a comprehensive plan outlining the steps needed to fulfill the request.
-Ensure the plan is clear, actionable, and considers the context of the conversation. Specify the tools to be used in each step.
+Ensure the plan is clear, actionable, and considers the context of the conversation.
 
 # Tools
 {tools}
 
-Then, after created the plan, ask the user for confirmation and feedback.
+# Note
+- Specify details about the tools and arguments to be used in each step.
+- Always present the plan in <plan>...</plan> tags.
+- After creating the plan, ask the user for confirmation and feedback outside the <plan> tags.
 """
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         ("placeholder", "{messages}"),
+        ("human", ""),
     ])
 
     return prompt
@@ -39,7 +44,13 @@ Make sure to follow the user's feedback and incorporate any new requirements or 
 # Tools
 {tools}
 
-Then, after created the plan, ask the user for confirmation and feedback.
+# Current Plan
+{current_plan}
+
+# Note
+- Specify details about the tools and arguments to be used in each step.
+- Always present the plan in <plan>...</plan> tags.
+- After creating the plan, ask the user for confirmation and feedback outside the <plan> tags.
 """
 
     prompt = ChatPromptTemplate.from_messages([

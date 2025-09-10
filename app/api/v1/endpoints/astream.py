@@ -63,7 +63,7 @@ async def astream(
 
         try:
             # Stream response from graph similar to Streamlit app
-            for subgraph, mode, state in graph.stream(
+            async for subgraph, mode, state in graph.astream(
                 inputs,
                 subgraphs=True,
                 stream_mode=["messages", "values"],
