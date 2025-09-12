@@ -41,6 +41,7 @@ async def astream(
     if not messages or messages[-1].content != request.message:
         messages.append(current_message)
 
+    thread_id = request.session_id or str(uuid.uuid4())
     inputs = {
         "messages": messages,
         "session_id": request.session_id,
@@ -61,77 +62,111 @@ async def astream(
             "node": "starting"
         })
 
-        try:
-            # Stream response from graph similar to Streamlit app
-            async for subgraph, mode, state in graph.astream(
-                inputs,
-                subgraphs=True,
-                stream_mode=["messages", "values"],
-                config={"callbacks": [langfuse_handler]}
-            ):
+        # try:
+        previous_node = None
+        # Stream response from graph similar to Streamlit app
+        async for subgraph, mode, state in graph.astream(
+            inputs,
+            subgraphs=True,
+            stream_mode=["messages", "values", "custom"],
+            config={
+                "configurable": {
+                    "thread_id": thread_id
+                },
+                "callbacks": [langfuse_handler]
+            }
+        ):
 
-                if mode == "values":
-                    # Handle state updates
-                    current_plan = state.get("current_plan", "")
-                    if current_plan:
+            if mode == "values":
+                # Handle state updates
+                current_plan = state.get("current_plan", "")
+                if current_plan:
+                    yield convert_to_sse_format({
+                        "content": f"Plan updated: {current_plan}",
+                        "type": "plan",
+                        "node": "Plan"
+                    })
+
+                # Update previous_node
+                if previous_node != state.get("previous_node", None):
+                    previous_node = state.get("previous_node", None)
+                    yield convert_to_sse_format({
+                        "content": f"**[Transitioned to {previous_node} Node]**",
+                        "type": "node_change",
+                        "node": previous_node,
+                        "previous_node": previous_node
+                    })
+                # if previous_node:
+                #     current_node = previous_node
+
+            elif mode == "messages":
+                msg, metadata = state
+
+                node = metadata.get("langgraph_node", "Unknown")
+
+                # # Send node change notification
+                # if current_node != node:
+                #     yield convert_to_sse_format({
+                #         "content": f"**[{node}]**",
+                #         "type": "node_change",
+                #         "node": node
+                #     })
+                #     current_node = node
+
+                is_stream = "check" not in node.lower()
+                is_stream = is_stream and node.lower() != "orchestrate"
+                if is_stream:
+                    # Send message content
+                    if msg.content:
+                        if isinstance(msg, AIMessage):
+                            full_response += msg.content
+                            yield convert_to_sse_format({
+                                "content": msg.content,
+                                "type": "message",
+                                "node": node,
+                                "previous_node": previous_node,
+                                "full_response": full_response
+                            })
+                        else:
+                            yield convert_to_sse_format({
+                                "content": msg.content,
+                                "type": "thinking",
+                                "node": node,
+                                "previous_node": previous_node
+                            })
+            elif mode == "custom":
+                msg = state
+                if msg.content:
+                    if isinstance(msg, AIMessage):
+                        full_response += msg.content
                         yield convert_to_sse_format({
-                            "content": f"Plan updated: {current_plan}",
-                            "type": "plan",
-                            "node": "Plan"
+                            "content": msg.content,
+                            "type": "message",
+                            "node": node,
+                            "previous_node": previous_node,
+                            "full_response": full_response
+                        })
+                    else:
+                        yield convert_to_sse_format({
+                            "content": msg.content,
+                            "type": "thinking",
+                            "node": node,
+                            "previous_node": previous_node
                         })
 
-                    # Update previous_node
-                    previous_node = state.get("previous_node", None)
-                    if previous_node:
-                        current_node = previous_node
+        # Send completion signal
+        yield convert_to_sse_format({
+            "content": "Response complete",
+            "type": "complete",
+            "full_response": full_response
+        })
 
-                elif mode == "messages":
-                    msg, metadata = state
-
-                    node = metadata.get("langgraph_node", "Unknown")
-
-                    # # Send node change notification
-                    # if current_node != node:
-                    #     yield convert_to_sse_format({
-                    #         "content": f"**[{node}]**",
-                    #         "type": "node_change",
-                    #         "node": node
-                    #     })
-                    #     current_node = node
-
-                    is_stream = "check" not in node.lower()
-                    is_stream = is_stream and node.lower() != "orchestrate"
-                    if is_stream:
-                        # Send message content
-                        if msg.content:
-                            if isinstance(msg, AIMessage):
-                                full_response += msg.content
-                                yield convert_to_sse_format({
-                                    "content": msg.content,
-                                    "type": "message",
-                                    "node": node,
-                                    "full_response": full_response
-                                })
-                            else:
-                                yield convert_to_sse_format({
-                                    "content": msg.content,
-                                    "type": "thinking",
-                                    "node": node
-                                })
-
-            # Send completion signal
-            yield convert_to_sse_format({
-                "content": "Response complete",
-                "type": "complete",
-                "full_response": full_response
-            })
-
-        except Exception as e:
-            logger.error(f"Error during streaming: {e}")
-            yield convert_to_sse_format({
-                "content": f"Error: {str(e)}",
-                "type": "error"
-            })
+        # except Exception as e:
+        #     logger.error(f"Error during streaming: {e}")
+        #     yield convert_to_sse_format({
+        #         "content": f"Error: {str(e)}",
+        #         "type": "error"
+        #     })
 
     return StreamingResponse(
         wrapped_streaming_tokens(),

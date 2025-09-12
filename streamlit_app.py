@@ -169,6 +169,7 @@ if prompt := st.chat_input("Type your message here..."):
                 content = data.get("content", "")
                 response_type = data.get("type", "")
                 node = data.get("node", "")
+                previous_node = data.get("previous_node", "")
 
                 if content:
                     if response_type in ["think", "thinking", "status", "node_change", "plan"]:
@@ -190,8 +191,8 @@ if prompt := st.chat_input("Type your message here..."):
                             # thinking_container.write(thinking_content)
 
                         # Update previous node if available
-                        if node:
-                            st.session_state.previous_node = node
+                        if previous_node:
+                            st.session_state.previous_node = previous_node
 
                     elif response_type in ["message", "msg"]:
                         # Handle final response
@@ -202,8 +203,8 @@ if prompt := st.chat_input("Type your message here..."):
                         response_container.text(full_response)
 
                         # Update state
-                        if node:
-                            st.session_state.previous_node = node
+                        if previous_node:
+                            st.session_state.previous_node = previous_node
 
                     elif response_type == "complete":
                         # Handle completion

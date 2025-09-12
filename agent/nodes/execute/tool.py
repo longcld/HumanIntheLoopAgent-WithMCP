@@ -37,4 +37,7 @@ async def tool_node(state):
 
     outputs = await asyncio.gather(*tasks)
 
-    return {"tool_outputs": outputs}
+    return {
+        "tool_outputs": outputs,
+        "previous_node": "ExecuteTool"
+    }

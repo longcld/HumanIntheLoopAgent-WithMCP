@@ -1,5 +1,5 @@
 
-from utils.llm import llm, non_streaming_llm
+from agent.llms import non_streaming_llm
 from .prompts import get_is_need_plan_prompt
 
 from loguru import logger
@@ -23,9 +23,12 @@ def node(state):
         else:
             logger.debug('No Plan Needed *** Routing to Response Node ***')
             return {'next_node': 'Response'}
-    elif previous_node == 'Plan':
+    elif 'Plan' in previous_node:
         logger.debug('Continuing in Plan Node')
         return {'next_node': 'Plan'}
+    elif 'Execute' in previous_node:
+        logger.debug('Continuing in Execute Node')
+        return {'next_node': 'Execute'}
     else:
         logger.debug(
             f'Unhandled previous node: {previous_node}. Routing to Response Node by default.'

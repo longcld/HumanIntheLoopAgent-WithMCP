@@ -8,7 +8,11 @@ from .nodes import (
 )
 
 from .states import State
- 
+
+from storage import LocalCheckpointSaver
+
+local_checkpointer = LocalCheckpointSaver(db_path="./dev_db")
+
 # define the nodes
 workflow = StateGraph(State)
 workflow.add_node('Orchestrate', orchestate_node)
@@ -43,4 +47,4 @@ workflow.add_conditional_edges(
 workflow.add_edge("Response", END)
 workflow.add_edge("Execute", END)
 
-graph = workflow.compile()
+graph = workflow.compile(checkpointer=local_checkpointer)

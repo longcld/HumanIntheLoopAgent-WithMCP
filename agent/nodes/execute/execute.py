@@ -1,7 +1,7 @@
 from langgraph.graph import StateGraph, END
 from loguru import logger
 from ...states import ExecutionState as State
-from utils.llm import llm, json_response_llm
+from agent.llms.llm import llm, json_response_llm
 from .prompts import break_plan_into_steps_prompt, execution_agent_prompt
 import json
 from utils.mcp_helpers import get_tools
@@ -78,8 +78,6 @@ def get_execute_graph():
     )
 
     workflow.add_edge("tools", "Execution")
-
-    workflow.add_edge("Execution", END)
 
     graph = workflow.compile()
 

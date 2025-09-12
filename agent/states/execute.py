@@ -8,8 +8,8 @@ class ExecutionState(BaseState):
 
     plan: str = ""
     steps: list[str] = []
-    current_step: int = 1
-    need_approval: bool = True
+    current_step: int = 0
+    approval_status: str = "not_requested"  # not_requested, pending, approved, rejected
 
     tool_message: BaseMessage
     is_tool_calling: bool = False

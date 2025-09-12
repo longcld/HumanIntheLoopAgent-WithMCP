@@ -1,6 +1,19 @@
 from langchain_core.prompts import ChatPromptTemplate
 
 
+def check_human_approval_prompt() -> ChatPromptTemplate:
+    system_prompt = """You are an expert AI assistant that helps determine is that human are approved the tool call or not.
+Based on the conversation so far, did the human approved the tool call?
+"""
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("placeholder", "{messages}"),
+        ("human", "Simply answer 'yes' if the tool call is approved, otherwise answer 'no'"),
+    ])
+    return prompt
+
+
 def execution_agent_prompt() -> ChatPromptTemplate:
     system_prompt = """You are an expert AI assistant that helps execute plans based on user requests and available tools.
 Given the current plan, available tools, and the conversation so far, execute the plan step-by-step.
