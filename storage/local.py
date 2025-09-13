@@ -34,8 +34,16 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
 
         logger.info(f"Using database path: `{self.db_path}`")
 
-    def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
-        thread_id = config["configurable"]["thread_id"]
+    def dump_json_messages(self, messages):
+        json_messages = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                json_messages.append(msg)
+            elif hasattr(msg, "model_dump"):
+                json_messages.append(msg.model_dump())
+            else:
+                logger.warning(f"Message of unsupported type: {type(msg)}")
+        return json_messages
 
     def put(
         self,
@@ -45,16 +53,14 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
         new_versions: ChannelVersions = None,
     ) -> RunnableConfig:
 
-        logger.info("Putting checkpoint with:")
-        logger.info(f"Config: {config}")
-        logger.info(f"Checkpoint: {checkpoint}")
-        logger.info(f"Metadata: {metadata}")
-
         thread_id = config["configurable"]["thread_id"]
+
+        checkpoint_id = config["configurable"].get("checkpoint_id")
+        checkpoint_ns = config["configurable"].get("checkpoint_ns")
 
         db_file_path = Path(self.db_path) / f"{thread_id}.json"
 
-        threads = []
+        checkpoints = []
         # Check if database file exists
         if not db_file_path.exists():
             logger.info(
@@ -66,13 +72,13 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
             logger.info(f"Loading existing database file: `{db_file_path}`")
             with open(db_file_path, "r") as db_file:
                 try:
-                    threads = json.load(db_file)
+                    checkpoints = json.load(db_file)
                     logger.info(
-                        f"Loaded {len(threads)} existing threads from database.")
+                        f"Loaded {len(checkpoints)} existing checkpoints from database.")
                 except json.JSONDecodeError:
                     logger.warning(
                         f"Database file `{db_file_path}` is empty or corrupted. Starting fresh.")
-                    threads = []
+                    checkpoints = []
 
         logger.info(
             f"Storing checkpoint for thread_id `{thread_id}` at `{db_file_path}`...")
@@ -81,6 +87,7 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
             "configurable": {
                 "thread_id": thread_id,
                 "checkpoint_id": checkpoint["id"],
+                "checkpoint_ns": checkpoint_ns
             }
         }
 
@@ -94,18 +101,26 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
             if v is None or isinstance(v, (str, int, float, bool)):
                 pass
             else:
-                blob_values[k] = copy["channel_values"].pop(k)
+                if k == "tool_message":
+                    copy["channel_values"]["tool_message"] = copy["channel_values"]["tool_message"].tool_calls
+                # elif k == "messages":
+                #     copy["channel_values"]["messages"] = self.dump_json_messages(copy["channel_values"]["messages"])
+                else:
+                    blob_values[k] = copy["channel_values"].pop(k)
 
         logger.debug(f"Blob values: {blob_values}")
-
-        threads.append({
+        logger.info(copy)
+        checkpoints.append({
+            "thread_id": thread_id,
+            "checkpoint_id": checkpoint_id,
+            "checkpoint_ns": checkpoint_ns,
             "checkpoint": copy,
             "metadata": metadata
         })
 
         # Write checkpoint and metadata to the file
         with open(db_file_path, "w") as db_file:
-            json.dump(threads, db_file, indent=4, ensure_ascii=False)
+            json.dump(checkpoints, db_file, indent=4, ensure_ascii=False)
 
         logger.info(
             f"Checkpoint stored successfully for thread_id {thread_id}.")
@@ -132,37 +147,35 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
         """
         import asyncio
 
-        logger.info("Putting checkpoint with:")
-        logger.info(f"Config: {config}")
-        logger.info(f"Checkpoint: {checkpoint}")
-        logger.info(f"Metadata: {metadata}")
-
         thread_id = config["configurable"]["thread_id"]
+        checkpoint_id = config["configurable"].get("checkpoint_id")
+        checkpoint_ns = config["configurable"].get("checkpoint_ns")
+
         db_file_path = Path(self.db_path) / f"{thread_id}.json"
 
         # Run file I/O operations in a thread pool to avoid blocking
         def _read_existing_data():
-            threads = []
+            checkpoints = []
             if db_file_path.exists():
                 logger.info(
                     f"Loading existing database file: `{db_file_path}`")
                 with open(db_file_path, "r") as db_file:
                     try:
-                        threads = json.load(db_file)
+                        checkpoints = json.load(db_file)
                         logger.info(
-                            f"Loaded {len(threads)} existing threads from database.")
+                            f"Loaded {len(checkpoints)} existing checkpoints from database.")
                     except json.JSONDecodeError:
                         logger.warning(
                             f"Database file `{db_file_path}` is empty or corrupted. Starting fresh.")
-                        threads = []
+                        checkpoints = []
             else:
                 logger.info(
                     f"Database file does not exist. Creating: `{db_file_path}`")
                 logger.info(
                     f"Database file created successfully at: `{db_file_path}`")
-            return threads
+            return checkpoints
 
-        threads = await asyncio.get_running_loop().run_in_executor(None, _read_existing_data)
+        checkpoints = await asyncio.get_running_loop().run_in_executor(None, _read_existing_data)
 
         logger.info(
             f"Storing checkpoint for thread_id `{thread_id}` at `{db_file_path}`...")
@@ -171,6 +184,7 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
             "configurable": {
                 "thread_id": thread_id,
                 "checkpoint_id": checkpoint["id"],
+                "checkpoint_ns": checkpoint_ns
             }
         }
 
@@ -184,11 +198,19 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
             if v is None or isinstance(v, (str, int, float, bool)):
                 pass
             else:
-                blob_values[k] = copy["channel_values"].pop(k)
+                if k == "tool_message":
+                    copy["channel_values"]["tool_message"] = copy["channel_values"]["tool_message"].tool_calls
+                # elif k == "messages":
+                #     copy["channel_values"]["messages"] = self.dump_json_messages(copy["channel_values"]["messages"])
+                else:
+                    blob_values[k] = copy["channel_values"].pop(k)
 
         logger.debug(f"Blob values: {blob_values}")
 
-        threads.append({
+        checkpoints.append({
+            "thread_id": thread_id,
+            "checkpoint_id": checkpoint_id,
+            "checkpoint_ns": checkpoint_ns,
             "checkpoint": copy,
             "metadata": metadata
         })
@@ -196,7 +218,7 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
         # Run write operation in a thread pool to avoid blocking
         def _write_data():
             with open(db_file_path, "w") as db_file:
-                json.dump(threads, db_file, indent=4, ensure_ascii=False)
+                json.dump(checkpoints, db_file, indent=4, ensure_ascii=False)
 
         await asyncio.get_running_loop().run_in_executor(None, _write_data)
 
@@ -224,9 +246,9 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
             NotImplementedError: Implement this method in your custom checkpoint saver.
         """
 
-        logger.info(f"Task ID: {task_id}")
-        logger.info(f"Task Path: {task_path}")
-        logger.info(f"Writes received: {writes}")
+        # logger.info(f"Task ID: {task_id}")
+        # logger.info(f"Task Path: {task_path}")
+        # logger.info(f"Writes received: {writes}")
 
         pass
 
@@ -245,15 +267,16 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
             task_id: Identifier for the task creating the writes.
             task_path: Path of the task creating the writes.
         """
-        import asyncio
+        # import asyncio
 
-        # Run logging operations asynchronously if needed
-        def _log_writes():
-            logger.info(f"Task ID: {task_id}")
-            logger.info(f"Task Path: {task_path}")
-            logger.info(f"Writes received: {writes}")
+        # # Run logging operations asynchronously if needed
+        # def _log_writes():
+        #     logger.info(f"Task ID: {task_id}")
+        #     logger.info(f"Task Path: {task_path}")
+        #     logger.info(f"Writes received: {writes}")
 
-        await asyncio.get_running_loop().run_in_executor(None, _log_writes)
+        # await asyncio.get_running_loop().run_in_executor(None, _log_writes)
+        pass
 
     def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         thread_id = config["configurable"]["thread_id"]
@@ -265,19 +288,20 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
 
         with open(db_file_path, "r") as db_file:
             try:
-                threads = json.load(db_file)
-                logger.info(f"Loaded {len(threads)} threads from database.")
+                checkpoints = json.load(db_file)
+                logger.info(
+                    f"Loaded {len(checkpoints)} checkpoints from database.")
             except json.JSONDecodeError:
                 logger.warning(
                     f"Database file `{db_file_path}` is empty or corrupted.")
                 return None
 
-        if not threads:
+        if not checkpoints:
             logger.info(
                 f"No checkpoints found in database file: `{db_file_path}`")
             return None
 
-        latest_entry = threads[-1]
+        latest_entry = checkpoints[-1]
         checkpoint = latest_entry.get("checkpoint")
         metadata = latest_entry.get("metadata")
 
@@ -314,26 +338,26 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
         def _read_file():
             with open(db_file_path, "r") as db_file:
                 try:
-                    threads = json.load(db_file)
+                    checkpoints = json.load(db_file)
                     logger.info(
-                        f"Loaded {len(threads)} threads from database.")
-                    return threads
+                        f"Loaded {len(checkpoints)} checkpoints from database.")
+                    return checkpoints
                 except json.JSONDecodeError:
                     logger.warning(
                         f"Database file `{db_file_path}` is empty or corrupted.")
                     return None
 
-        threads = await asyncio.get_running_loop().run_in_executor(None, _read_file)
+        checkpoints = await asyncio.get_running_loop().run_in_executor(None, _read_file)
 
-        if threads is None:
+        if checkpoints is None:
             return None
 
-        if not threads:
+        if not checkpoints:
             logger.info(
                 f"No checkpoints found in database file: `{db_file_path}`")
             return None
 
-        latest_entry = threads[-1]
+        latest_entry = checkpoints[-1]
         checkpoint = latest_entry.get("checkpoint")
         metadata = latest_entry.get("metadata")
 
@@ -366,14 +390,17 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
 
         with open(db_file_path, "r") as db_file:
             try:
-                threads = json.load(db_file)
-                logger.info(f"Loaded {len(threads)} threads from database.")
+                checkpoints = json.load(db_file)
+                logger.info(
+                    f"Loaded {len(checkpoints)} checkpoints from database.")
             except json.JSONDecodeError:
                 logger.warning(
                     f"Database file `{db_file_path}` is empty or corrupted.")
                 return iter([])
 
-        for entry in threads:
+        for entry in checkpoints:
+            checkpoint_id = entry.get("checkpoint_id")
+            checkpoint_ns = entry.get("checkpoint_ns")
             checkpoint = entry.get("checkpoint")
             metadata = entry.get("metadata")
 
@@ -381,6 +408,36 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
                 logger.warning(
                     f"Incomplete checkpoint data in database file: `{db_file_path}`")
                 continue
+
+            # Apply filter if provided
+            if filter:
+                should_include = True
+                for key, value in filter.items():
+                    if key == "checkpoint_id":
+                        if checkpoint_id != value:
+                            should_include = False
+                            break
+                    elif key == "checkpoint_ns":
+                        if checkpoint_ns == "" or checkpoint_ns not in value:
+                            should_include = False
+                            break
+                    elif key in metadata:
+                        if metadata.get(key) != value:
+                            should_include = False
+                            break
+                    elif key in checkpoint:
+                        if checkpoint.get(key) != value:
+                            should_include = False
+                            break
+                    else:
+                        # Check in channel_values for custom fields
+                        channel_values = checkpoint.get("channel_values", {})
+                        if key not in channel_values or channel_values.get(key) != value:
+                            should_include = False
+                            break
+
+                if not should_include:
+                    continue
 
             yield CheckpointTuple(
                 config=config,
@@ -420,18 +477,20 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
         def _read_file():
             with open(db_file_path, "r") as db_file:
                 try:
-                    threads = json.load(db_file)
+                    checkpoints = json.load(db_file)
                     logger.info(
-                        f"Loaded {len(threads)} threads from database.")
-                    return threads
+                        f"Loaded {len(checkpoints)} checkpoints from database.")
+                    return checkpoints
                 except json.JSONDecodeError:
                     logger.warning(
                         f"Database file `{db_file_path}` is empty or corrupted.")
                     return []
 
-        threads = await asyncio.get_running_loop().run_in_executor(None, _read_file)
+        checkpoints = await asyncio.get_running_loop().run_in_executor(None, _read_file)
 
-        for entry in threads:
+        for entry in checkpoints:
+            checkpoint_id = entry.get("checkpoint_id")
+            checkpoint_ns = entry.get("checkpoint_ns")
             checkpoint = entry.get("checkpoint")
             metadata = entry.get("metadata")
 
@@ -439,6 +498,36 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
                 logger.warning(
                     f"Incomplete checkpoint data in database file: `{db_file_path}`")
                 continue
+
+            # Apply filter if provided
+            if filter:
+                should_include = True
+                for key, value in filter.items():
+                    if key == "checkpoint_id":
+                        if checkpoint_id != value:
+                            should_include = False
+                            break
+                    elif key == "checkpoint_ns":
+                        if checkpoint_ns == "" or checkpoint_ns not in value:
+                            should_include = False
+                            break
+                    elif key in metadata:
+                        if metadata.get(key) != value:
+                            should_include = False
+                            break
+                    elif key in checkpoint:
+                        if checkpoint.get(key) != value:
+                            should_include = False
+                            break
+                    else:
+                        # Check in channel_values for custom fields
+                        channel_values = checkpoint.get("channel_values", {})
+                        if key not in channel_values or channel_values.get(key) != value:
+                            should_include = False
+                            break
+
+                if not should_include:
+                    continue
 
             yield CheckpointTuple(
                 config=config,
@@ -483,3 +572,31 @@ class LocalCheckpointSaver(BaseCheckpointSaver):
                 return False
 
         await asyncio.get_running_loop().run_in_executor(None, _delete_file)
+
+    def delete_all(self) -> None:
+        db_folder = Path(self.db_path)
+        if not db_folder.exists():
+            logger.warning(f"Database folder does not exist: `{db_folder}`")
+            return
+
+        for db_file in db_folder.glob("*.json"):
+            db_file.unlink()
+            logger.info(f"Deleted database file: `{db_file}`")
+
+    async def adelete_all(self) -> None:
+        """Asynchronously delete all threads and their associated checkpoint data."""
+        import asyncio
+        from pathlib import Path
+
+        db_folder = Path(self.db_path)
+        if not db_folder.exists():
+            logger.warning(f"Database folder does not exist: `{db_folder}`")
+            return
+
+        # Run file operations in a thread pool to avoid blocking
+        def _delete_files():
+            for db_file in db_folder.glob("*.json"):
+                db_file.unlink()
+                logger.info(f"Deleted database file: `{db_file}`")
+
+        await asyncio.get_running_loop().run_in_executor(None, _delete_files)

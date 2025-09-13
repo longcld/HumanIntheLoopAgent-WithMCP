@@ -1,7 +1,7 @@
 
 from agent.states.state import State
 from utils import extract_tag_text
-from agent.llms import llm, non_streaming_llm
+from agent.llms.load_llms import llm, non_streaming_llm
 from utils.mcp_helpers import get_tool_descriptions
 from loguru import logger
 
@@ -134,7 +134,7 @@ def get_plan_graph():
     workflow.add_edge("Initial", END)
     workflow.add_edge("Refine", END)
 
-    graph = workflow.compile()
+    graph = workflow.compile(checkpointer=True)
 
     return graph.with_config({"run_name": "Planning Graph"})
 

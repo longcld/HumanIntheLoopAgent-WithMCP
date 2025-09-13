@@ -25,6 +25,49 @@ async def astream(
 ):
     logger.debug(f"Received request: {request}")
 
+    config = {
+        "configurable": {
+            "thread_id": request.session_id
+        }
+    }
+
+    all_checkpoints = list(
+        graph.checkpointer.list(
+            config,
+        )
+    )
+
+    last_checkpoint = all_checkpoints[-1] if all_checkpoints else None
+    last_state = {
+        "previous_node": None,
+        "current_plan": "",
+        "metadata": {}
+    }
+    if last_checkpoint:
+        last_state.update(last_checkpoint.checkpoint["channel_values"])
+
+        last_node = last_state.get("previous_node", None)
+        last_node_state = {}
+        if last_node:
+            node_checkpoints = list(
+                graph.checkpointer.list(
+                    config,
+                    filter={"checkpoint_ns": last_node}
+                )
+            )
+            last_node_checkpoint = node_checkpoints[-1] if node_checkpoints else None
+
+            logger.info(
+                f"Last node: {last_node}, Last node checkpoint: {last_node_checkpoint}"
+            )
+
+            if last_node_checkpoint:
+                last_node_state = last_node_checkpoint.checkpoint["channel_values"]
+        last_state["metadata"] = {
+            **last_state["metadata"],
+            **{k: v for k, v in last_node_state.items() if k not in last_state}
+        }
+
     # Prepare inputs similar to the Streamlit app
     messages = []
 
@@ -43,11 +86,14 @@ async def astream(
 
     thread_id = request.session_id or str(uuid.uuid4())
     inputs = {
+        **last_state,
         "messages": messages,
         "session_id": request.session_id,
-        "previous_node": request.previous_node,
-        "current_plan": request.current_plan or ""
+        # "previous_node": request.previous_node,
+        # "current_plan": request.current_plan or ""
     }
+
+    logger.info(f"====== INPUTS ======\n{inputs}\n====================")
 
     langfuse_handler = CallbackHandler()
 

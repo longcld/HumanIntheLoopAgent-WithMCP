@@ -27,9 +27,16 @@ async def execute_node(state):
     chain = execution_agent_prompt() | llm.bind_tools(get_tools())
 
     input_messages = state.get("messages", [])
-    if state.get("is_tool_calling", False) and state.get("tool_outputs", []):
-        input_messages += [state["tool_message"]]
-        input_messages += [msg for msg in state["tool_outputs"]]
+    if state.get("is_tool_calling", False):
+        input_messages += [
+            AIMessage(
+                content="",
+                tool_calls=state.get("tool_message", []))
+        ]
+    else:
+        if state.get("tool_outputs", []):
+            input_messages += [state["tool_message"]]
+            input_messages += [msg for msg in state["tool_outputs"]]
 
     response = await chain.ainvoke(
         {
@@ -155,12 +162,16 @@ async def node(state):
     logger.debug('*** Entered Execute Node ***')
 
     execute_graph = get_execute_graph()
+
+    logger.info(f"State before execution: {state}")
     response = await execute_graph.ainvoke({
         "plan": state.get("current_plan", ""),
+        **state.get("metadata", {}),  # Unpack metadata into the state
         **state
     })
 
     logger.debug(f"Execution Response: {response}")
+
     previous_subnode = response.get("previous_node", "")
     previous_node = "Execute"
     if previous_subnode:

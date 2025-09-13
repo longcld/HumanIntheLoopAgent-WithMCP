@@ -5,6 +5,7 @@ from utils.mcp_helpers import get_tools
 
 import json
 import asyncio
+from loguru import logger
 
 
 async def tool_node(state):
@@ -12,7 +13,12 @@ async def tool_node(state):
     tool_map = {tool.name: tool for tool in get_tools()}
     tool_calls = []
     if state.get("tool_message"):
-        tool_calls = state.get("tool_message").tool_calls.copy()
+        if hasattr(state.get("tool_message"), "tool_calls"):
+            tool_calls = state.get("tool_message").tool_calls.copy()
+        else:
+            tool_calls = state.get("tool_message")
+
+    logger.info(f"Tool calls: {tool_calls}")
 
     async def run_tool(tool_call):
         """Run a single tool call."""
